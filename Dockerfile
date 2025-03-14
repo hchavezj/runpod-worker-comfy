@@ -1,6 +1,7 @@
 # Stage 1: Base image with common dependencies
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 as base
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 AS base
 
+ENV LANG=C.UTF-8
 # Prevents prompts from packages asking for user input during installation
 ENV DEBIAN_FRONTEND=noninteractive
 # Prefer binary wheels over source distributions for faster pip installations
@@ -55,16 +56,16 @@ RUN /restore_snapshot.sh
 CMD ["/start.sh"]
 
 # Stage 2: Download models
-FROM base as downloader
+FROM base AS downloader
 
-ARG HUGGINGFACE_ACCESS_TOKEN
+RUN --mount=type=secret,id=HUGGINGFACE_ACCESS_TOKEN cat /run/secrets/HUGGINGFACE_ACCESS_TOKEN
 ARG MODEL_TYPE
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui
 
 # Create necessary directories
-RUN mkdir -p models/checkpoints models/vae
+RUN mkdir -p models/checkpoints models/vae models/loras
 
 # Download checkpoints/vae/LoRA to include in image based on model type
 RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \
@@ -72,21 +73,34 @@ RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \
       wget -O models/vae/sdxl_vae.safetensors https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors && \
       wget -O models/vae/sdxl-vae-fp16-fix.safetensors https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors; \
     elif [ "$MODEL_TYPE" = "sd3" ]; then \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/checkpoints/sd3_medium_incl_clips_t5xxlfp8.safetensors https://huggingface.co/stabilityai/stable-diffusion-3-medium/resolve/main/sd3_medium_incl_clips_t5xxlfp8.safetensors; \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/checkpoints/sd3_medium_incl_clips_t5xxlfp8.safetensors https://huggingface.co/stabilityai/stable-diffusion-3-medium/resolve/main/sd3_medium_incl_clips_t5xxlfp8.safetensors; \
     elif [ "$MODEL_TYPE" = "flux1-schnell" ]; then \
       wget -O models/unet/flux1-schnell.safetensors https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors && \
       wget -O models/clip/clip_l.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors && \
       wget -O models/clip/t5xxl_fp8_e4m3fn.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors && \
       wget -O models/vae/ae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors; \
     elif [ "$MODEL_TYPE" = "flux1-dev" ]; then \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/unet/flux1-dev.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/unet/flux1-dev.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors && \
       wget -O models/clip/clip_l.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors && \
       wget -O models/clip/t5xxl_fp8_e4m3fn.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors && \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/vae/ae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors; \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/vae/ae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors; \
+      # custom loras for flux \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/skin_texture_style_v5.safetensors https://civitai.com/api/download/models/1081450?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/hands_v2.safetensors https://civitai.com/api/download/models/804967?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/perfection_style_v2d.safetensors https://civitai.com/api/download/models/931225?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/bustyFC-2.1.safetensors https://civitai.com/api/download/models/723657?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/Sevenof9_nude_FLUX_man_woman_v4.safetensors https://civitai.com/api/download/models/1215910?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/full_female_anatomy.safetensors  https://civitai.com/api/download/models/748526?type=Model&format=SafeTensor && \ 
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/nina_dobrev.safetensors https://civitai.com/api/download/models/1497357?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/fix_ass.safetensors https://civitai.com/api/download/models/735619?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/juniper.safetensors https://civitai.com/api/download/models/1396899?type=Model&format=SafeTensor && \
+      wget --header="Authorization: Bearer $HUGGINGFACE_ACCESS_TOKEN" -O models/loras/ghost_areolas_flux.safetensors https://civitai.com/api/download/models/814029?type=Model&format=SafeTensor; \
+      #wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/loras/   &&"   \
     fi
 
+
 # Stage 3: Final image
-FROM base as final
+FROM base AS final
 
 # Copy models from stage 2 to the final image
 COPY --from=downloader /comfyui/models /comfyui/models
