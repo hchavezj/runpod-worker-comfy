@@ -26,6 +26,10 @@ RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Install comfy-cli
 RUN pip install comfy-cli
+  
+RUN pip install av2
+RUN pip install matplotlib
+RUN pip install accelerate
 
 # Install ComfyUI
 RUN /usr/bin/yes | comfy --workspace /comfyui install --cuda-version 11.8 --nvidia --version 0.3.26
@@ -34,11 +38,7 @@ RUN /usr/bin/yes | comfy --workspace /comfyui install --cuda-version 11.8 --nvid
 WORKDIR /comfyui
 
 # Install runpod
-RUN pip install runpod requests && \
-  pip install accelerate && \
-  pip install cv2 && \
-  pip install matplotlib && \
-  pip install accelerate;
+RUN pip install runpod requests
 
 # Support for the network volume
 ADD src/extra_model_paths.yaml ./
